@@ -1,43 +1,98 @@
-# OpsPilot AI — Demo para PME
+# OpsPilot AI — Gestão inteligente de frotas e equipamentos para PME
 
-**Aplicação Streamlit demonstrável sem instalação local.** Analisa eventos fictícios de manutenção, inspeções e seguros de 12 viaturas/empilhadores e prepara propostas de ação exportáveis em CSV.
+> **Demonstração de portefólio** | Streamlit + Python + regras determinísticas + agente OpenAI opcional  
+> Dados **100% fictícios**. Sem dados reais, integrações, persistência partilhada, comunicações automáticas ou pareceres legais.
 
-## Publicar apenas com o navegador (GitHub + Streamlit Cloud)
+## Experimentar em 2 minutos
 
-1. Descarrega o ZIP e **extrai-o**. Não coloques o ZIP como ficheiro no GitHub: o Streamlit precisa dos ficheiros Python separados.
-2. Entra em https://github.com e cria um repositório público chamado `opspilot-ai` (Create a new repository).
-3. No repositório, usa **Add file > Upload files** (ou **uploading an existing file**, se o repositório estiver vazio). Seleciona **todos os ficheiros extraídos** e confirma em **Commit changes**.
-4. Confirma que `app.py`, `engine.py`, `agent.py` e `requirements.txt` aparecem **na raiz** do repositório, e não dentro de uma pasta.
-5. Vai a https://share.streamlit.io, inicia sessão com o GitHub, seleciona **Create app > Yup, I have an app**.
-6. Escolhe o repositório `opspilot-ai`, branch `main` e **Main file path**: `app.py`. Carrega em **Deploy**.
-7. Abre o endereço público `https://<nome-da-app>.streamlit.app` e testa os 3 cenários. Podes enviar este URL numa candidatura.
+1. Abre a aplicação Streamlit publicada.
+2. Seleciona **📊 Dashboard**, consulta os alertas e exporta o plano.
+3. Seleciona **🚐 Frota** ou **🏗️ Empilhadores** e navega pelas secções.
+4. Em **🗃️ Dados & Registos**, altera a data de inspeção de um ativo e clica **Guardar alterações**.
+5. Volta ao **Dashboard**: os alertas refletem a alteração.
+6. Em **🤖 Assistente Agentic**, consulta o plano determinístico; o agente LLM apenas funciona quando configurado e autorizado.
 
-**Sem chave de API**, a aplicação corre como demonstração baseada em regras, sem executar um LLM. Este é o modo mais simples e seguro para a primeira publicação.
+## Cobertura funcional
 
-## Ativar posteriormente a IA com ferramentas (opcional)
+| Domínio | Funcionalidades implementadas neste MVP |
+|---|---|
+| Frota automóvel | Inventário, matrículas e responsáveis, km, estado, contratos e renovações, renting/seguros, despesas e cartões, portagens, multas e estado das comunicações |
+| Empilhadores | Inventário e tipo de energia, armazém e turno, afetações de operadores, compra/aluguer, baterias e consumíveis, horas, ocupação |
+| Manutenção | Calendário, alertas por km/horas, manutenção preventiva/corretiva, ordens propostas, oficinas, causa de falha, custos, tempo parado, inspeções |
+| Segurança | Cartas e formações com validade, detetor de incompatibilidades nas afetações, checklists, sinistros e medidas corretivas, avisos de conformidade |
+| Custos | Orçamento anual, TCO indicativo YTD, EUR/km, EUR/h, categorias e desvios, simulador compra/renting, consumos |
+| Fornecedores | Cadastro, contratos e prazos, avaliações, resposta média vs SLA, propostas comparáveis por custo nominal |
+| Reporting | KPIs, exportação CSV, telemetria/localização sintética, fatores configuráveis de emissões, oportunidades de eficiência |
 
-A aplicação inclui código para OpenAI Responses API + function calling com 3 ferramentas autorizadas e apenas de leitura/proposta. Para o ativar, usa **Streamlit Cloud > App settings > Secrets**, com formato TOML:
+**16 tabelas editáveis** na aplicação, sem necessidade de Excel/ERP. Edição com validação mínima de IDs e referências; importação/exportação JSON de todas as tabelas. Alterações vivem **só na sessão do navegador**.
+
+## Arquitetura enxuta
+
+```text
+Visitante (browser)
+       |
+ Streamlit (app.py)  ← UI / navegação / formulários / CSV / JSON
+       |
+  ├─ data.py           dados sintéticos de demonstração (16 domínios)
+  ├─ logic.py          regras verificáveis, alertas, TCO, KPI
+  └─ agent.py          agente opcional, ferramentas read-only
+       |
+    OpenAI Responses API (apenas quando ativada e autorizada)
+```
+
+Ver [ARQUITETURA.md](ARQUITETURA.md) para decisões, requisitos e evolução para produção.
+
+## Substituir a versão anterior no GitHub (sem instalar software)
+
+1. Descarrega o ZIP e **extrai o conteúdo** no teu computador.
+2. Abre o teu repositório no GitHub pelo navegador.
+3. Escolhe **Add file → Upload files** (ou o link *uploading an existing file*).
+4. Carrega os ficheiros extraídos **na raiz** do repositório. Confirma que `app.py`, `logic.py`, `data.py`, `agent.py` e `requirements.txt` aparecem diretamente na raiz, sem pasta adicional.
+5. Quando o GitHub detetar ficheiros com o mesmo nome, confirma a **substituição** e clica **Commit changes**. Podes manter `engine.py` antigo, mas a nova aplicação não o utiliza.
+6. Se a aplicação já estiver publicada no Streamlit Cloud, o código atualizado será detetado pelo serviço. Não precisas de alterar o endereço publicado.
+7. Abre o link Streamlit e experimenta o dashboard e os registos.
+
+Se ainda não estiver publicada: em https://share.streamlit.io seleciona repositório, `main` e `app.py`, depois **Deploy**.
+
+### Ficheiros da raiz
+
+- `app.py` — interface, módulos e registos
+- `data.py` — dados exclusivamente sintéticos
+- `logic.py` — motor determinístico, regras, indicadores, custos e propostas
+- `agent.py` — ferramentas read-only e OpenAI Responses API
+- `requirements.txt` — dependências
+- `test_logic.py`, `test_agent_tools.py` — testes automáticos
+- `ARQUITETURA.md` — documentação de arquitetura
+- `PASSOS_GITHUB.md` — guia de publicação pelo navegador
+
+## Ativar a IA (OPCIONAL)
+
+A demo funciona sem OpenAI. Para experimentar o agente LLM, define nos **Secrets** da aplicação, nunca no GitHub:
 
 ```toml
-OPENAI_API_KEY = "a-tua-chave-aqui"
+OPENAI_API_KEY = "chave-da-tua-conta"
+DEMO_ACCESS_CODE = "codigo-secreto-dificil-de-adivinhar"
 OPENAI_MODEL = "gpt-5-mini"
 ```
 
-**Nunca coloques uma chave de API nos ficheiros do GitHub.** A aplicação pública não tem autenticação nem um limite global de requisições; utiliza IA real apenas com controlos de custos e acesso apropriados. Os limites de execução por sessão não impedem utilização repetida por vários visitantes.
+O visitante tem de introduzir o código de acesso para ativar chamadas à API. Existe limite de 3 chamadas por sessão, **mas não é controlo robusto de utilização ou despesa**; configura quotas/limites de gasto na API e prefere deixar a IA desligada numa demo pública. Não colocar segredos, dados reais ou documentos pessoais em texto de prompts.
 
-## Ficheiros
+## Testes
 
-- `app.py`: interface Streamlit e exportação CSV
-- `engine.py`: dados sintéticos e regras determinísticas
-- `agent.py`: agente opcional com function calling
-- `requirements.txt`: bibliotecas para a publicação
-- `ARQUITETURA.md`: decisões de arquitetura e fluxo agentic
-- `test_engine.py` e `test_agent_tools.py`: testes unitários
+```bash
+pip install -r requirements.txt pytest
+pytest -q test_logic.py test_agent_tools.py
+```
 
-## Limitações
+**Sem dependência de IA para executar os testes.**
 
-Dados, datas, prioridades, estimativas e históricos são fictícios. Não existe acesso a ERP, email ou equipamentos reais. O programa não executa operações externas. Os prazos de inspeção são dados demonstrativos, não aconselhamento jurídico.
+## Limitações e transparência
 
-## Tecnologias
+- A aplicação não é um EAM/ERP pronto para produção, mas um **protótipo operacional e arquitetural**.
+- Não há autenticação empresarial, persistência entre sessões, permissões por utilizador, auditoria persistente ou backups automáticos.
+- As datas de inspeções são **registos sintéticos**, não cálculo automático de prazos legais.
+- Não existem integrações reais com Via Verde, seguradoras, oficinas, WMS, GPS ou fornecedores.
+- O TCO é aproximado: valores sintéticos YTD + mensalidades aproximadas + depreciação linear; não é modelação contabilística validada.
+- É proibido usar dados reais/identificáveis nesta demonstração pública sem desenho de privacidade, segurança e base legal adequados.
 
-Python · Streamlit · Pandas · OpenAI Responses API (opcional)
+Criado para mostrar como uma PME pode começar com dados simples e evoluir progressivamente para uma solução integrada.

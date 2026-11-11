@@ -1,18 +1,18 @@
-"""Offline tests of the safe tool dispatcher; no API key needed."""
-from agent import call_tool
+from data import build_demo
+from agent import TOOL_DEFS, call_tool
 
 
-def test_unknown_tool_is_blocked():
-    assert call_tool("delete_all_assets", {}) == {"erro": "Ferramenta não autorizada"}
+def test_agent_tools_are_read_only():
+    data = build_demo()
+    before = len(data["manutencoes"])
+    for name,args in [("get_alerts",{"days":30,"area":"Todas"}),
+                      ("get_costs",{}), ("get_operational_kpis",{}),
+                      ("get_supplier_sla",{}), ("get_asset_detail",{"asset_id":"E-201"}),
+                      ("draft_action_plan",{"days":30})]:
+        assert call_tool(name, args, data)
+    assert len(data["manutencoes"]) == before
 
 
-def test_due_items_tool_returns_list():
-    result = call_tool("get_due_items", {"window_days": 30, "asset_type": "Todos"})
-    assert isinstance(result, list)
-    assert result and all("ativo" in item for item in result)
-
-
-def test_plan_tool_only_drafts():
-    result = call_tool("draft_action_plan", {"window_days": 7, "asset_type": "Todos"})
-    assert isinstance(result, list)
-    assert all("validação humana" in item["estado"] for item in result)
+def test_unlisted_tool_is_blocked():
+    assert call_tool("send_email", {}, build_demo()) == {"erro": "Ferramenta não autorizada"}
+    assert all(x["name"] != "send_email" for x in TOOL_DEFS)

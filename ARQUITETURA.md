@@ -1,134 +1,121 @@
-# OpsPilot AI — Arquitetura técnica (MVP demonstrável para PME)
+# OpsPilot AI — Decisões de arquitetura e rastreabilidade dos requisitos
 
-## 1. Objetivo
+## Objetivo
 
-Demonstrar em poucos minutos como um **agente único com ferramentas** pode consultar dados operacionais, pedir cálculos verificáveis, explicar prioridades e preparar um plano de ação. A primeira versão utiliza apenas dados sintéticos e não faz operações externas. Público-alvo: PME de logística, distribuição ou serviços com viaturas/equipamentos.
+Demonstrar a pequenos empregadores e PME uma solução empresarial simples que começa por dados de operação, regras verificáveis e interação conversacional assistida por IA. É uma **demonstração**, não produto pronto para operação com dados reais.
 
-### Storyline demonstrativa
+## Contexto e princípios
 
-> «Analisa os prazos dos próximos 30 dias e apresenta prioridades e propostas de ação.»
+1. **Zero instalação no PC**: editar ficheiros no GitHub e publicar em Streamlit Community Cloud.
+2. **Time to value**: todas as funcionalidades visíveis na mesma aplicação.
+3. **Sem overengineering**: um processo Python; sem containers, Kafka, Kubernetes, ETL e microserviços.
+4. **Separação de responsabilidades**: UI (`app.py`), dados (`data.py`), lógica (`logic.py`), agente (`agent.py`).
+5. **Determinismo onde importa**: datas, indicadores, custos e validações calculados pelo Python, não pelo LLM.
+6. **Human-in-the-loop**: ordens de trabalho ficam em `Proposta`, sem efeitos fora da sessão.
+7. **Safety first**: IA usa ferramentas read-only, limite de chamadas, código de acesso opcional, dados fictícios.
+8. **Transparência**: cada indicador apresenta pressupostos e limitações.
 
-Critério de sucesso: o visitante abre a aplicação, clica em «Analisar», vê prazos, fontes, prioridades e plano exportável em CSV; se a API estiver ativada, vê também as ferramentas chamadas pelo modelo.
+## Diagrama lógico
 
-## 2. Contexto e componentes
+```text
+            Navegador (utilizador/entrevistador)
+                          |
+            Streamlit Community Cloud
+              app.py (interface web)
+       +------------------+-------------------+
+       |                  |                   |
+     data.py            logic.py            agent.py
+  16 tabelas fake    regras / TCO / KPI   function calling
+       |                  |                   |
+ session_state      funções puras         tools read-only
+       |                  |                   |
+ exportar JSON/CSV ----->|             OpenAI Responses API
+                                         (configurada por Secrets)
 
-```mermaid
-flowchart TB
-  U[Visitante / gestor de PME] --> UI[Streamlit: app.py]
-  UI -->|modo regras| E[engine.py: regras determinísticas]
-  UI -->|modo IA com chave no servidor| A[agent.py: loop de function calling]
-  A -->|pedido a modelo| LLM[OpenAI Responses API]
-  LLM -->|escolhe ferramenta| A
-  A -->|allowlist: read-only / draft| E
-  E --> D[(Dados sintéticos em memória)]
-  E --> UI
-  A -->|recomendação + rastreabilidade| UI
-  UI --> EXP[Exportação CSV: propostas, sem execução]
+Legenda: não há integração com ERP nem telemática externa.
 ```
 
-### Responsabilidades
+## Cobertura dos requisitos
 
-| Componente | Responsável por | Não deve fazer |
+| # | Atividade solicitada | Implementação demonstrativa | Observação |
+|---|---|---|---|
+| 1.1 | Inventário viaturas | `ativos` + módulo Frota | Matrícula, responsável, km, estado e local |
+| 1.2 | Leasing/renting/seguros | `contratos`, avisos e datas | Ciclo de vida editável; não renova automaticamente |
+| 1.3 | Atribuição e utilização | `ativos.colaborador_id`, `utilizacao` | Histórico completo exigiria tabela de eventos |
+| 1.4 | Combustível/cartões/Via Verde | `despesas` e `cartao_referencia` | Sem API real de fornecedores |
+| 1.5 | Multas/coimas | `multas` + prazo + condutor + estado | Não envia comunicações externas |
+| 2.1 | Inventário de equipamentos | `ativos` com categoria Empilhador e energia | Inclui porta-paletes |
+| 2.2 | Distribuição por armazém/turno | `afetacoes` | Detecta operadores sem validade documental e equipamentos indisponíveis |
+| 2.3 | Aluguer/compra/substituição | `contratos`, `propostas`, simulador | Comparação nominal ilustrativa |
+| 2.4 | Baterias/carregadores/gás | `consumiveis` + despesas | Atributos e prazos editáveis |
+| 2.5 | Horas e taxa de utilização | `utilizacao` + KPIs | Horas produtivas/planeadas |
+| 3.1 | Manutenção preventiva | Regra por calendário, km e horas | Datas e limiares são dados sintéticos |
+| 3.2 | Corretiva/fornecedores | `manutencoes` + `fornecedores` | Gestão de ordem de trabalho local |
+| 3.3 | IPO/verificações | `inspecoes` + alertas | Sem cálculo automático de regra legal |
+| 3.4 | Avarias/custos/causas | `manutencoes`, gráfico de causas | Relatórios simples |
+| 3.5 | Imobilização | `ativos.estado`, horas de paragem | Medição indicativa |
+| 4.1 | Cumprimento legal | Alertas documentais configuráveis | NÃO substitui validação jurídica e SST |
+| 4.2 | Formação empilhadores | `colaboradores.formacao_empilhador_ate` | Controlos de afetação ilustrativos |
+| 4.3 | Cartas de condução | `colaboradores.carta_valida_ate` | Validade manual |
+| 4.4 | Sinistros | `sinistros`, causa, comunicação e ações | Sem sinistros reais |
+| 4.5 | Checklists diárias | `checklists` + formulário | Lança alerta de anomalia |
+| 5.1 | Orçamento anual | `orcamentos` | Desvios YTD aproximados |
+| 5.2 | TCO por ativo | `cost_analysis` | Custos registados + rendas + depreciação indicativa |
+| 5.3 | Desvios e redução | Dashboard e tabela de categorias | Propostas dependem da validação da empresa |
+| 5.4 | Compra/renting/substituição | Simulador de custo nominal | Sem NPV e impostos |
+| 6.1 | Fornecedores e contratos | `fornecedores`, `contratos` | Negociação externa não implementada |
+| 6.2 | Avaliação e propostas | Pontuações, `propostas` comparadas | Controlo de qualidade básico |
+| 6.3 | SLA | Tempo de resposta médio vs objetivo | Não implementa cálculo contratual real |
+| 7.1 | Reporting e KPIs | Dashboard e Reporting; CSV | Dados da sessão |
+| 7.2 | Telemática/GPS | `telemetria` sintética | Sem GPS real ou monitorização de pessoas |
+| 7.3 | Eficiência/eletrificação/CO₂ | Recomendações e simulador de fatores | Não é inventário oficial de emissões |
+
+## KPIs e fórmulas
+
+| KPI | Implementação | Limite |
 |---|---|---|
-| `app.py` | UI, estado de sessão, cenário, apresentação, exportação | Inventar regras ou guardar segredos no código |
-| `agent.py` | Instruções, definição das ferramentas, dispatch autorizado, loop e trace | Calcular prazos na resposta ou executar ações não autorizadas |
-| `engine.py` | Dados sintéticos, cálculo exato de prazos/prioridades, plano preliminar | Chamar a API de IA |
-| `tests/` | Garantir cálculos e restrições de ferramentas | Depender da API real ou de credenciais |
-| Streamlit Secrets | Disponibilizar chave apenas no servidor | Expor a chave ao navegador / GitHub |
+| Disponibilidade | ativos operacionais / total × 100 | fotografia atual, não disponibilidade histórica |
+| Utilização de empilhadores | horas produtivas / horas planeadas × 100 | dados YTD sintéticos |
+| Cumprimento manutenção preventiva | preventivas concluídas no prazo / preventivas previstas com prazo vencido | apenas ordens registadas |
+| Prazos documentais de inspeções e seguros | inspeções concluídas no prazo e seguros marcados renovados / registos com prazo vencido | não equivale a conformidade legal global |
+| Custo/km | TCO estimado YTD / km YTD por viatura | registo de gastos incompleto |
+| Custo/h | TCO estimado YTD / horas produtivas YTD por empilhador | sem rateio de custos gerais |
+| Sinistros/custos | contagem e soma dos sinistros | sem normalização por exposição |
+| Consumo combustível/energia | soma por unidades | não compara tecnologias heterogéneas |
 
-## 3. Fluxo completo (quando IA está ativada)
+### Exemplo de motor de regras vs agent
 
-```mermaid
-sequenceDiagram
-  actor Gestor
-  participant UI as Streamlit
-  participant Agent as agent.py
-  participant API as OpenAI API
-  participant Engine as engine.py
-  Gestor->>UI: Clica em «Analisar»
-  UI->>Agent: run_agent(pergunta)
-  Agent->>API: Pedido + schemas de ferramentas
-  API-->>Agent: function_call(get_due_items)
-  Agent->>Engine: get_due_items(30, Todos)
-  Engine-->>Agent: Lista de eventos, datas e prioridades
-  Agent->>API: Resultado da ferramenta
-  API-->>Agent: Resumo e ações propostas
-  Agent-->>UI: Texto + trace de ferramentas
-  UI-->>Gestor: Recomendação + tabela + CSV
-```
+1. O motor lê uma inspeção com `data_limite` nos próximos 7 dias.
+2. `get_alerts` emite um evento estruturado com fonte, ativo, prioridade e ação proposta.
+3. O utilizador pede: "o que devo priorizar?".
+4. O agente chama `get_alerts` e `draft_action_plan` através de ferramentas autorizadas.
+5. O agente redige uma recomendação explicável em português europeu.
+6. A ação é exportada ou mantida em estado `Proposta`. Nenhum fornecedor recebe uma ordem real.
 
-No **modo de simulação**, não existe chamada à OpenAI: a UI lê diretamente o `engine.py` e apresenta um resumo baseado em regras. Este modo não deve ser descrito como execução de IA.
+## Decisões e trade-offs
 
-## 4. Contratos e dados
+- **Decisão A — Streamlit em vez de frontend+API separados.** Reduz custo e tempo, mas não escala em autenticação granular e multiutilizador.
+- **Decisão B — `st.session_state` em vez de PostgreSQL.** Demonstra interação sem infraestrutura; perde dados ao terminar a sessão. Exportar JSON compensa apenas numa demo.
+- **Decisão C — Um agente vs multiagent.** Menos pontos de falha, custo previsível, governança mais fácil; dividir agentes só se workflows independentes justificarem.
+- **Decisão D — Chamadas read-only.** Evita alterações externas sem autorização, mas não demonstra execução autónoma com efeitos permanentes.
+- **Decisão E — Datas legais manualmente configuradas.** Evita inferir obrigações incorretas de legislação e tipo de equipamento.
 
-Exemplo de ativo (simplificado):
+## Requisitos para entrada em produção
 
-```json
-{
-  "id": "E-201",
-  "tipo": "Empilhador",
-  "local": "Armazém Norte",
-  "deadlines": {
-    "maintenance": "AAAA-MM-DD",
-    "inspection": "AAAA-MM-DD"
-  },
-  "estimativa_eur": 420,
-  "historico": "Avaria recorrente no carregador"
-}
-```
+1. Formalizar modelo de dados (ativos, identidades, manutenções, documentos e eventos) e migração.
+2. Adicionar login SSO, autorização por perfil, separação por empresa, trilhos de auditoria e gestão de segredos.
+3. PostgreSQL com backups, retenção, migrações, observabilidade e encriptação.
+4. Integrar fornecedores/ERP/WMS/GPS por APIs, filas/eventos quando necessário, reconciliação e idempotência.
+5. Introduzir workflows de aprovação real, notificação e evidências documentais.
+6. Validar legislação portuguesa, SST, proteção de dados e políticas laborais com especialistas.
+7. Definir SLO, recuperação de falhas, limites de gastos LLM, avaliação de prompts e testes de segurança.
+8. Desenhar testes de ponta a ponta, carga, concorrência, privacidade e recuperação.
 
-Ferramentas autorizadas:
+## Governança do agente
 
-1. `get_due_items(window_days, asset_type)` -> lista com ativo, evento, data, dias e prioridade.
-2. `get_asset_history(asset_id)` -> histórico sintético de um ativo.
-3. `draft_action_plan(window_days, asset_type)` -> ações propostas, sempre pendentes de validação humana.
-
-As datas do dataset são criadas em relação ao dia da execução para que o exemplo continue a funcionar em diferentes datas. As regras de prioridade são demonstrativas: **Crítica** se vencida/hoje; **Alta** até 7 dias; **Média** no restante período analisado. Não correspondem, por si, a um parecer de conformidade legal ou prioridade técnica.
-
-## 5. Decisões de arquitetura (ADRs resumidos)
-
-**ADR-001 — Streamlit em vez de frontend + API separados.** Menor tempo de implementação, instalação simples e publicação direta. Trocar apenas quando houver vários canais, equipas ou integrações.
-
-**ADR-002 — Um agente, não uma equipa multiagente.** O objetivo é mostrar uso de ferramentas e limites de autonomia, não criar complexidade artificial.
-
-**ADR-003 — Regras determinísticas fora do LLM.** Dates, filtros e classificação são calculados e testados em Python. A IA interpreta os resultados.
-
-**ADR-004 — Sem base de dados no MVP.** Dados sintéticos em memória. Adicionar CSV/SQLite apenas quando houver necessidade real; PostgreSQL só com persistência e múltiplos utilizadores.
-
-**ADR-005 — Read-only/draft.** Nenhuma ordem de trabalho, email, compra ou alteração externa pode ser executada. A exportação CSV é manual.
-
-**ADR-006 — API chave no servidor.** Nunca incorporar credenciais no repositório ou UI. Para link público, configurar orçamento e proteção contra abuso.
-
-## 6. Segurança e operação
-
-- Todos os dados são fictícios. Não convidar visitantes a inserir dados reais ou pessoais nesta demo pública.
-- Apenas ferramentas explicitamente permitidas podem ser invocadas. O LLM não executa código arbitrário nem acessa rede externa por ferramentas.
-- Tratar textos retornados por ferramentas como dados, não como instruções.
-- O limite de 3 chamadas por sessão não é um rate limit global: **não evita abuso nem garante controlo de custos**. Para uma demonstração pública, é preferível expor só o modo de regras ou colocar autenticação e controlo de utilização do lado do servidor/proxy antes de ativar a API.
-- Não registar chaves, informação pessoal ou respostas sensíveis em logs. Monitorizar consumo no projeto API.
-- Em aplicações reais: identidade, autorização, isolamento de dados entre empresas, consentimento/base legal, retenção e auditoria tornam-se obrigatórios conforme o contexto.
-
-## 7. Evolução incremental
-
-| Fase | Evolução | Porque só depois |
-|---|---|---|
-| MVP | Dados fictícios + regras + Streamlit + agente opcional | É demonstrável e compreensível |
-| v1.1 | Upload de CSV sintético e validação de colunas | Adapta-se às folhas Excel das PME |
-| v1.2 | Pequeno histórico de propostas em SQLite | Permite auditar o que foi proposto |
-| v1.3 | Autenticação e limites de consumo | Necessário para API pública persistente |
-| v2 | Integrações reais e aprovação autenticada | Só após validar um cliente e os seus processos |
-
-## 8. Como demonstrar que é realmente agentic
-
-Mostrar: (1) modelo seleciona ferramenta; (2) Python devolve os dados; (3) modelo apresenta recomendação; (4) interface permite ver *trace* da ferramenta; (5) ação fica como proposta para o humano. Sem chave, mostrar apenas as regras e declarar explicitamente o modo de simulação.
-
-## 9. Checklist de qualidade
-
-- `python -m pytest -q` passa.
-- `python -m streamlit run app.py` abre.
-- Cenário «Prazos» mostra eventos vencidos e próximos.
-- Cenário «Empilhadores» filtra ativos corretamente.
-- CSV descarregado inclui «Proposta — requer validação humana».
-- Uma ferramenta desconhecida é rejeitada.
-- Nenhuma chave foi incluída no Git.
-- Se há API ativa, a UI identifica explicitamente o modo e expõe o trace.
+- LLM é opcional e protegida por `OPENAI_API_KEY` + `DEMO_ACCESS_CODE` no Streamlit Secrets.
+- Ferramentas são somente consulta de dados sintéticos da sessão.
+- Limites de 4 passos e 4 ferramentas por resposta; input máximo 1.200 caracteres.
+- Não há execução de scripts arbitrários nem escrita em sistemas externos.
+- Dado vindo de ferramentas é tratado como não confiável nas instruções do agente.
+- O código de acesso e limite por sessão **não substituem** autenticação nem limites de API para exposição pública.
